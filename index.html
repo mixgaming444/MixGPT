@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MixGPT</title>
   <script src="config.js"></script>
   <style>
@@ -12,18 +12,23 @@
       background: #ffffff;
       border-right: 1px solid #ccc;
       padding: 20px;
-      display: flex;
+      display: none;
       flex-direction: column;
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      z-index: 10;
     }
     .sidebar h2 { margin-bottom: 10px; }
     .chat-list { flex: 1; overflow-y: auto; margin-top: 10px; }
     .chat-item { padding: 10px; margin-bottom: 5px; background: #f0f0f0; border-radius: 10px; cursor: pointer; }
     .chat-item:hover { background: #d0f0f0; }
-    .new-chat { margin-top: 10px; padding: 10px; background: #007BFF; color: white; text-align: center; border-radius: 10px; cursor: pointer; }.main {
+    .new-chat { margin-top: 10px; padding: 10px; background: #007BFF; color: white; text-align: center; border-radius: 10px; cursor: pointer; }
+    .menu-btn { position: absolute; top: 10px; left: 10px; background: transparent; border: none; font-size: 24px; cursor: pointer; z-index: 20; }.main {
   flex: 1;
   display: flex;
   flex-direction: column;
   padding: 20px;
+  margin-left: 0;
 }
 .chat-box {
   flex: 1;
@@ -33,7 +38,7 @@
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
   overflow-y: auto;
 }
-.message { margin: 10px 0; }
+.message { margin: 10px 0; position: relative; }
 .message.user { text-align: right; color: blue; }
 .message.bot { text-align: left; color: black; }
 .input-area {
@@ -44,10 +49,39 @@ input { flex: 1; padding: 10px 15px; font-size: 1rem; border-radius: 20px 0 0 20
 button { padding: 10px 20px; font-size: 1rem; border: none; background: #007BFF; color: white; border-radius: 0 20px 20px 0; cursor: pointer; }
 img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
 
+.popup-menu, .modal {
+  position: fixed;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  padding: 10px;
+  z-index: 100;
+}
+.popup-menu button, .modal button {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 8px;
+  background: #007BFF;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.modal input {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
   </style>
 </head>
 <body>
-  <div class="sidebar">
+  <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+  <div class="sidebar" id="sidebar">
     <h2>MixGPT</h2>
     <div class="chat-list" id="chatList"></div>
     <div class="new-chat" onclick="createNewChat()">+ New Chat</div>
@@ -58,8 +92,12 @@ img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
       <input type="text" id="userInput" placeholder="Type something..." />
       <button onclick="sendMessage()">Send</button>
     </div>
-  </div>  <script>
+  </div>  <div id="popup" class="popup-menu" style="display:none;"></div>
+  <div id="modal" class="modal" style="display:none;"></div>  <script>
     const chat = document.getElementById("chat");
+    const sidebar = document.getElementById("sidebar");
+    const popup = document.getElementById("popup");
+    const modal = document.getElementById("modal");
     const keywords = ['make', 'draw', 'generate', 'create'];
     const chatList = document.getElementById("chatList");
 
@@ -68,6 +106,10 @@ img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
     chatSessions.push(currentChat);
     saveChats();
     loadChats();
+
+    function toggleSidebar() {
+      sidebar.style.display = sidebar.style.display === "flex" ? "none" : "flex";
+    }
 
     function saveChats() {
       localStorage.setItem("mixgpt_chats", JSON.stringify(chatSessions));
@@ -79,16 +121,50 @@ img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
         const div = document.createElement("div");
         div.className = "chat-item";
         div.innerText = `Chat ${index + 1}`;
-        div.onpointerdown = (e) => {
+        div.onpointerdown = () => {
           let pressTimer = setTimeout(() => {
-            const newName = prompt("Rename chat:", div.innerText);
-            if (newName) div.innerText = newName;
+            popup.innerHTML = '';
+            popup.style.display = 'block';
+            popup.style.top = event.clientY + 'px';
+            popup.style.left = event.clientX + 'px';
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Edit Chat Name';
+            editBtn.onclick = () => showRenameChat(index);
+            const delBtn = document.createElement('button');
+            delBtn.innerText = 'Delete Chat';
+            delBtn.onclick = () => showDeleteChat(index);
+            popup.append(editBtn, delBtn);
           }, 800);
           div.onpointerup = () => clearTimeout(pressTimer);
         };
         div.onclick = () => loadChat(index);
         chatList.appendChild(div);
       });
+    }
+
+    function showRenameChat(index) {
+      modal.innerHTML = '<input id="newName" placeholder="New name"><button onclick="confirmRename(' + index + ')">Save</button>';
+      modal.style.display = 'block';
+      popup.style.display = 'none';
+    }
+
+    function confirmRename(index) {
+      const name = document.getElementById('newName').value;
+      if (name) chatList.children[index].innerText = name;
+      modal.style.display = 'none';
+    }
+
+    function showDeleteChat(index) {
+      modal.innerHTML = '<p>Are you sure?</p><button onclick="deleteChat(' + index + ')">Yes</button><button onclick="modal.style.display=\'none\'">Cancel</button>';
+      modal.style.display = 'block';
+      popup.style.display = 'none';
+    }
+
+    function deleteChat(index) {
+      chatSessions.splice(index, 1);
+      saveChats();
+      loadChats();
+      modal.style.display = 'none';
     }
 
     function loadChat(index) {
@@ -106,14 +182,15 @@ img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
 
     function renderChat() {
       chat.innerHTML = "";
-      currentChat.messages.forEach(msg => addMessage(msg.text, msg.who, false));
+      currentChat.messages.forEach((msg, i) => addMessage(msg.text, msg.who, false, i));
     }
 
     async function sendMessage() {
       const input = document.getElementById("userInput");
       const text = input.value.trim();
       if (!text) return;
-      addMessage(text, "user");
+      const userIndex = currentChat.messages.length;
+      addMessage(text, "user", true, userIndex);
       currentChat.messages.push({ text, who: "user" });
 
       input.value = "";
@@ -143,7 +220,7 @@ img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
         } else {
           const data = await res.json();
           const reply = data.output || "No response";
-          addMessage(reply, "bot");
+          addMessage(reply, "bot", true);
           currentChat.messages.push({ text: reply, who: "bot" });
         }
       } catch (e) {
@@ -154,28 +231,61 @@ img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
       chat.scrollTop = chat.scrollHeight;
     }
 
-    function addMessage(text, who, save = true) {
+    function addMessage(text, who, save = true, index = null) {
       const div = document.createElement("div");
       div.className = "message " + who;
       div.textContent = text;
       if (who === "user") {
         div.onpointerdown = (e) => {
           let pressTimer = setTimeout(() => {
-            const edit = confirm("Edit this message?");
-            if (edit) {
-              const newText = prompt("Edit your message:", text);
-              if (newText) {
-                div.textContent = newText;
-              }
-            } else if (confirm("Delete this message?")) {
-              div.remove();
-            }
+            popup.innerHTML = '';
+            popup.style.display = 'block';
+            popup.style.top = e.clientY + 'px';
+            popup.style.left = e.clientX + 'px';
+
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Edit Message';
+            editBtn.onclick = () => showEditMessage(index);
+
+            const selectBtn = document.createElement('button');
+            selectBtn.innerText = 'Select Text';
+            selectBtn.onclick = () => window.getSelection().selectAllChildren(div);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerText = 'Delete Message';
+            deleteBtn.onclick = () => deleteMessage(index);
+
+            popup.append(editBtn, selectBtn, deleteBtn);
           }, 800);
           div.onpointerup = () => clearTimeout(pressTimer);
         };
       }
       chat.appendChild(div);
       if (save) currentChat.messages.push({ text, who });
+    }
+
+    function showEditMessage(index) {
+      modal.innerHTML = '<input id="editInput" value="' + currentChat.messages[index].text + '"><button onclick="confirmEdit(' + index + ')">Save</button>';
+      modal.style.display = 'block';
+      popup.style.display = 'none';
+    }
+
+    function confirmEdit(index) {
+      const newText = document.getElementById('editInput').value;
+      if (newText) {
+        currentChat.messages[index].text = newText;
+        currentChat.messages.splice(index + 1, 1); // remove old bot response
+        renderChat();
+      }
+      modal.style.display = 'none';
+      saveChats();
+    }
+
+    function deleteMessage(index) {
+      currentChat.messages.splice(index, 2); // delete user + bot
+      renderChat();
+      popup.style.display = 'none';
+      saveChats();
     }
   </script></body>
 </html>
