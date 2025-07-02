@@ -1,5 +1,6 @@
 export default async function handler(req, res) {
   const { input, type } = req.body;
+  const token = process.env.HF_TOKEN; // <- token stays hidden in Vercel
 
   const model = type === "image"
     ? "stabilityai/stable-diffusion-2"
@@ -8,7 +9,7 @@ export default async function handler(req, res) {
   const hfRes = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
     method: "POST",
     headers: {
-      Authorization: "Bearer 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",
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(type === "image" ? { inputs: input } : {
