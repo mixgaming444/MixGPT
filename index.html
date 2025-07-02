@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,70 +6,176 @@
   <script src="config.js"></script>
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; }
-    body { background: #e0f7fa; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-    h1 { margin-bottom: 20px; }
-    .chat-box { width: 100%; max-width: 500px; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); overflow-y: auto; max-height: 60vh; margin-bottom: 20px; }
-    .message { margin: 10px 0; }
-    .message.user { text-align: right; color: blue; }
-    .message.bot { text-align: left; color: black; }
-    .input-area { display: flex; width: 100%; max-width: 500px; }
-    input { flex: 1; padding: 10px 15px; font-size: 1rem; border-radius: 20px 0 0 20px; border: 1px solid #ccc; outline: none; }
-    button { padding: 10px 20px; font-size: 1rem; border: none; background: #007BFF; color: white; border-radius: 0 20px 20px 0; cursor: pointer; }
-    img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
+    body { display: flex; height: 100vh; background: #e0f7fa; color: #222; }
+    .sidebar {
+      width: 250px;
+      background: #ffffff;
+      border-right: 1px solid #ccc;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar h2 { margin-bottom: 10px; }
+    .chat-list { flex: 1; overflow-y: auto; margin-top: 10px; }
+    .chat-item { padding: 10px; margin-bottom: 5px; background: #f0f0f0; border-radius: 10px; cursor: pointer; }
+    .chat-item:hover { background: #d0f0f0; }
+    .new-chat { margin-top: 10px; padding: 10px; background: #007BFF; color: white; text-align: center; border-radius: 10px; cursor: pointer; }.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+.chat-box {
+  flex: 1;
+  background: white;
+  padding: 20px;
+  border-radius: 20px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  overflow-y: auto;
+}
+.message { margin: 10px 0; }
+.message.user { text-align: right; color: blue; }
+.message.bot { text-align: left; color: black; }
+.input-area {
+  display: flex;
+  margin-top: 10px;
+}
+input { flex: 1; padding: 10px 15px; font-size: 1rem; border-radius: 20px 0 0 20px; border: 1px solid #ccc; outline: none; }
+button { padding: 10px 20px; font-size: 1rem; border: none; background: #007BFF; color: white; border-radius: 0 20px 20px 0; cursor: pointer; }
+img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
+
   </style>
 </head>
 <body>
-  <h1>MixGPT</h1>
-  <div class="chat-box" id="chat"></div>
-  <div class="input-area">
-    <input type="text" id="userInput" placeholder="Type something..." />
-    <button onclick="sendMessage()">Send</button>
+  <div class="sidebar">
+    <h2>MixGPT</h2>
+    <div class="chat-list" id="chatList"></div>
+    <div class="new-chat" onclick="createNewChat()">+ New Chat</div>
   </div>
-
-  <script>
+  <div class="main">
+    <div class="chat-box" id="chat"></div>
+    <div class="input-area">
+      <input type="text" id="userInput" placeholder="Type something..." />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>  <script>
     const chat = document.getElementById("chat");
     const keywords = ['make', 'draw', 'generate', 'create'];
+    const chatList = document.getElementById("chatList");
+
+    let chatSessions = JSON.parse(localStorage.getItem("mixgpt_chats") || "[]");
+    let currentChat = { id: Date.now(), messages: [] };
+    chatSessions.push(currentChat);
+    saveChats();
+    loadChats();
+
+    function saveChats() {
+      localStorage.setItem("mixgpt_chats", JSON.stringify(chatSessions));
+    }
+
+    function loadChats() {
+      chatList.innerHTML = "";
+      chatSessions.forEach((session, index) => {
+        const div = document.createElement("div");
+        div.className = "chat-item";
+        div.innerText = `Chat ${index + 1}`;
+        div.onpointerdown = (e) => {
+          let pressTimer = setTimeout(() => {
+            const newName = prompt("Rename chat:", div.innerText);
+            if (newName) div.innerText = newName;
+          }, 800);
+          div.onpointerup = () => clearTimeout(pressTimer);
+        };
+        div.onclick = () => loadChat(index);
+        chatList.appendChild(div);
+      });
+    }
+
+    function loadChat(index) {
+      currentChat = chatSessions[index];
+      renderChat();
+    }
+
+    function createNewChat() {
+      currentChat = { id: Date.now(), messages: [] };
+      chatSessions.push(currentChat);
+      saveChats();
+      loadChats();
+      renderChat();
+    }
+
+    function renderChat() {
+      chat.innerHTML = "";
+      currentChat.messages.forEach(msg => addMessage(msg.text, msg.who, false));
+    }
 
     async function sendMessage() {
       const input = document.getElementById("userInput");
       const text = input.value.trim();
       if (!text) return;
-
       addMessage(text, "user");
-      input.value = "";
+      currentChat.messages.push({ text, who: "user" });
 
+      input.value = "";
       const isImage = keywords.some(k => text.toLowerCase().includes(k));
       const payload = { input: text, type: isImage ? "image" : "text" };
 
-      const res = await fetch(HUGGINGFACE_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const res = await fetch(HUGGINGFACE_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
-      if (isImage) {
-        const blob = await res.blob();
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(blob);
-        img.className = "generated";
-        const wrap = document.createElement("div");
-        wrap.className = "message bot";
-        wrap.innerHTML = "Image generated:<br/>";
-        wrap.appendChild(img);
-        chat.appendChild(wrap);
-      } else {
-        const data = await res.json();
-        addMessage(data.output || "No reply", "bot");
+        if (!res.ok) throw new Error("API error");
+
+        if (isImage) {
+          const blob = await res.blob();
+          const img = document.createElement("img");
+          img.src = URL.createObjectURL(blob);
+          img.className = "generated";
+          const wrap = document.createElement("div");
+          wrap.className = "message bot";
+          wrap.innerHTML = "Image generated:<br/>";
+          wrap.appendChild(img);
+          chat.appendChild(wrap);
+          currentChat.messages.push({ text: "[image generated]", who: "bot" });
+        } else {
+          const data = await res.json();
+          const reply = data.output || "No response";
+          addMessage(reply, "bot");
+          currentChat.messages.push({ text: reply, who: "bot" });
+        }
+      } catch (e) {
+        addMessage("Error: " + e.message, "bot");
       }
+
+      saveChats();
       chat.scrollTop = chat.scrollHeight;
     }
 
-    function addMessage(text, who) {
+    function addMessage(text, who, save = true) {
       const div = document.createElement("div");
       div.className = "message " + who;
       div.textContent = text;
+      if (who === "user") {
+        div.onpointerdown = (e) => {
+          let pressTimer = setTimeout(() => {
+            const edit = confirm("Edit this message?");
+            if (edit) {
+              const newText = prompt("Edit your message:", text);
+              if (newText) {
+                div.textContent = newText;
+              }
+            } else if (confirm("Delete this message?")) {
+              div.remove();
+            }
+          }, 800);
+          div.onpointerup = () => clearTimeout(pressTimer);
+        };
+      }
       chat.appendChild(div);
+      if (save) currentChat.messages.push({ text, who });
     }
-  </script>
-</body>
+  </script></body>
 </html>
