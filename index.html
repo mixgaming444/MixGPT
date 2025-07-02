@@ -1,1 +1,76 @@
-<!DOCTYPE html><html><head><title>MixGPT</title><script src='config.js'></script></head><body><h1>MixGPT Running on Vercel</h1><script>/* frontend will go here */</script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MixGPT</title>
+  <script src="config.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; }
+    body { background: #e0f7fa; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+    h1 { margin-bottom: 20px; }
+    .chat-box { width: 100%; max-width: 500px; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); overflow-y: auto; max-height: 60vh; margin-bottom: 20px; }
+    .message { margin: 10px 0; }
+    .message.user { text-align: right; color: blue; }
+    .message.bot { text-align: left; color: black; }
+    .input-area { display: flex; width: 100%; max-width: 500px; }
+    input { flex: 1; padding: 10px 15px; font-size: 1rem; border-radius: 20px 0 0 20px; border: 1px solid #ccc; outline: none; }
+    button { padding: 10px 20px; font-size: 1rem; border: none; background: #007BFF; color: white; border-radius: 0 20px 20px 0; cursor: pointer; }
+    img.generated { max-width: 100%; margin-top: 10px; border-radius: 12px; }
+  </style>
+</head>
+<body>
+  <h1>MixGPT</h1>
+  <div class="chat-box" id="chat"></div>
+  <div class="input-area">
+    <input type="text" id="userInput" placeholder="Type something..." />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const keywords = ['make', 'draw', 'generate', 'create'];
+
+    async function sendMessage() {
+      const input = document.getElementById("userInput");
+      const text = input.value.trim();
+      if (!text) return;
+
+      addMessage(text, "user");
+      input.value = "";
+
+      const isImage = keywords.some(k => text.toLowerCase().includes(k));
+      const payload = { input: text, type: isImage ? "image" : "text" };
+
+      const res = await fetch(HUGGINGFACE_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (isImage) {
+        const blob = await res.blob();
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(blob);
+        img.className = "generated";
+        const wrap = document.createElement("div");
+        wrap.className = "message bot";
+        wrap.innerHTML = "Image generated:<br/>";
+        wrap.appendChild(img);
+        chat.appendChild(wrap);
+      } else {
+        const data = await res.json();
+        addMessage(data.output || "No reply", "bot");
+      }
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function addMessage(text, who) {
+      const div = document.createElement("div");
+      div.className = "message " + who;
+      div.textContent = text;
+      chat.appendChild(div);
+    }
+  </script>
+</body>
+</html>
