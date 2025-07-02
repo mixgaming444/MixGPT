@@ -1,4 +1,3 @@
-
 export default async function handler(req, res) {
   const { input, type } = req.body;
 
@@ -9,7 +8,7 @@ export default async function handler(req, res) {
   const hfRes = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
     method: "POST",
     headers: {
-      Authorization: "Bearer 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",
+      Authorization: "Bearer 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",
       "Content-Type": "application/json"
     },
     body: JSON.stringify(type === "image" ? { inputs: input } : {
