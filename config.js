@@ -1,1 +1,1 @@
-const HUGGINGFACE_API_URL = '/api/hf';
+const HUGGINGFACE_API_URL = "api-hf.js";
